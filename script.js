@@ -43,7 +43,7 @@ function draw() {
   textSize(c / 20);
   text("Score: " + str(int(score)), width / 4, dh / 1.5);
   textSize(c / 40);
-  text("inPhinite", (3 * width) / 4, dh / 4);
+  text("sumFib", (3 * width) / 4, dh / 4);
   textSize(c / 20);
   if (!newGame) {
     push();
