@@ -89,7 +89,7 @@ function draw() {
     fill(255);
 
     textSize(c / 20);
-    text("Game Over", width / 2, height / 2);
+    text("Sum-thing is over.", width / 2, height / 2);
     textSize(c / 40);
     if (onMobile) {
       text("Swipe to play again.", width / 2, height / 2 + 40);
