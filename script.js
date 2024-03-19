@@ -80,7 +80,7 @@ function draw() {
     drawBoard();
     fill(0, 0, 0, 180);
     noStroke();
-    rect(0, 0, width, height, 40, 40, 40, 40);
+    rect(0, 0, width, height, 20, 20, 20, 20);
     fill(255);
     stroke(255);
     textSize(c / 20);
