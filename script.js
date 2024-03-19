@@ -448,7 +448,7 @@ function touchStarted() {
 }
 
 function touchEnded() {
-  if (onMobile && !cooldown) {
+  if (onMobile) {
     // Only proceed if there's at least one touch point
     if (touches.length > 0) {
       endX = touches[0].x;
