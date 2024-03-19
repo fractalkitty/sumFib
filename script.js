@@ -156,13 +156,13 @@ function newNum() {
 }
 
 function keyPressed() {
-  if (keyCode === 37) {
+  if (keyCode === 37 || keyCode === 65) {
     moveLeftAndCombine();
-  } else if (keyCode === 38) {
+  } else if (keyCode === 38 || keyCode === 87) {
     moveUpAndCombine();
-  } else if (keyCode === 39) {
+  } else if (keyCode === 39 || keyCode === 68) {
     moveRightAndCombine();
-  } else if (keyCode === 40) {
+  } else if (keyCode === 40 || keyCode === 83) {
     moveDownAndCombine();
   }
   if (keyCode === 32) {
