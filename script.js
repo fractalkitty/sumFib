@@ -31,6 +31,7 @@ let c, score, dw, dh;
 let onMobile = false;
 let startX, startY, endX, endY, r1, g1, b1;
 function setup() {
+  describe('A game that adds fibonacci numbers similar to 2048 and 3s. The grid is layed out in a 3x5 grid and starts with 2 random numbers being a 1 or 2. The colors are of greens and reds and oranges.');
   readyForNewGame = false;
   c = windowHeight * 0.9;
   // angleMode(DEGREES);
