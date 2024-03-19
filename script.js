@@ -245,48 +245,41 @@ function moveUpAndCombine() {
   let moveOccurred = false;
 
   for (let j = 0; j < cols; j++) {
-    // Store the original state of the column for comparison.
     let originalColumn = [];
     for (let i = 0; i < nums.length; i++) {
       originalColumn.push(nums[i][j]);
     }
 
-    // Extract non-zero values to the top, effectively shifting up.
-    let column = originalColumn.filter((val) => val !== 0);
+    let column = originalColumn.filter(val => val !== 0);
+    let combined = new Array(column.length).fill(false); // Track which tiles have combined
 
-    // Attempt to combine adjacent tiles.
     for (let i = 0; i < column.length - 1; i++) {
-      if (isFibonacci(column[i] + column[i + 1])) {
+      if (!combined[i] && isFibonacci(column[i] + column[i + 1])) {
         score += column[i] + column[i + 1];
         column[i] += column[i + 1];
-        column.splice(i + 1, 1); // Remove the combined tile.
+        column.splice(i + 1, 1); // Remove the combined tile
+        combined.splice(i + 1, 1); // Ensure we track combined state correctly
+        combined[i] = true; // Mark this tile as having combined
         moveOccurred = true;
-        i--; // Adjust the index to stay in place after a merge.
       }
     }
 
-    // Fill the rest of the column with zeros.
     while (column.length < nums.length) {
-      column.push(0);
+      column.push(0); // Fill with zeros
     }
 
-    // Update the column in the original grid.
     for (let i = 0; i < nums.length; i++) {
       nums[i][j] = column[i];
-    }
-
-    // Check for any changes in the column compared to its original state.
-    if (!originalColumn.every((val, index) => val === nums[index][j])) {
-      moveOccurred = true;
+      if (nums[i][j] !== originalColumn[i]) moveOccurred = true;
     }
   }
 
-  // Add a new number only if a move has happened.
   if (moveOccurred) {
     newNum();
+    checkGameOver();
   }
-  checkGameOver();
 }
+
 
 function moveDownAndCombine() {
   let cols = nums[0].length;
