@@ -1,5 +1,5 @@
 //11358
-
+let readyForNewGame = false;
 let bg1 = "#4a6660";
 let bg2 = "#467971";
 let colors = [
@@ -31,6 +31,7 @@ let c, score, dw, dh;
 let onMobile = false;
 let startX, startY, endX, endY, r1, g1, b1;
 function setup() {
+  readyForNewGame = false;
   c = windowHeight * 0.9;
   // angleMode(DEGREES);
   r1 = 100;
@@ -449,7 +450,6 @@ function touchStarted() {
 
 function touchEnded() {
   if (onMobile) {
-    // Only proceed if there's at least one touch point
     if (touches.length > 0) {
       endX = touches[0].x;
       endY = touches[0].y;
@@ -458,49 +458,29 @@ function touchEnded() {
       endY = mouseY;
     }
 
-    // Determine swipe direction.
     const diffX = endX - startX;
     const diffY = endY - startY;
 
-    if (abs(diffX) > abs(diffY)) {
-      // Horizontal movement
-      if (diffX > 0) {
-        // console.log("Swiped Right");
-        moveRightAndCombine();
-        if (newGame) {
-          newGame = false;
-          setup();
-          draw();
-        }
+    if (!newGame || readyForNewGame) {
+      // Process swipes only if it's not end game or ready for a new game
+      if (abs(diffX) > abs(diffY)) {
+        // Horizontal movement
+        diffX > 0 ? moveRightAndCombine() : moveLeftAndCombine();
       } else {
-        // console.log("Swiped Left");
-        moveLeftAndCombine();
-        if (newGame) {
+        // Vertical movement
+        diffY > 0 ? moveDownAndCombine() : moveUpAndCombine();
+      }
+    }
 
-          newGame = false;
-          setup();
-          draw();
-        }
-      }
-    } else {
-      // Vertical movement
-      if (diffY > 0) {
-        // console.log("Swiped Down");
-        moveDownAndCombine();
-        if (newGame) {
-          newGame = false;
-          setup();
-          draw();
-        }
-      } else {
-        // console.log("Swiped Up");
-        moveUpAndCombine();
-        if (newGame) {
-          newGame = false;
-          setup();
-          draw();
-        }
-      }
+    if (newGame && !readyForNewGame) {
+      // If the game has ended and it's the first swipe after the end, set readyForNewGame to true
+      readyForNewGame = true;
+    } else if (newGame && readyForNewGame) {
+      // If it's the second swipe after the game has ended, reset for a new game
+      newGame = false;
+      readyForNewGame = false; // Reset readyForNewGame
+      setup();
+      draw();
     }
 
     return false; // Prevent default
