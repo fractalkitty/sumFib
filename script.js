@@ -148,39 +148,39 @@ function moveLeftAndCombine() {
   let moveOccurred = false;
 
   for (let i = 0; i < rows; i++) {
-    // Store the original state of the row for comparison.
-    let originalRow = [...nums[i]];
+    let row = nums[i].filter(val => val !== 0); // Remove zeros for combination logic
 
-    // Extract the current row, ignoring zeros to prepare for shifting.
-    let row = nums[i].filter((val) => val !== 0);
-
-    // Attempt to combine tiles in the row, from left to right.
+    // Combine tiles from left to right
     for (let j = 0; j < row.length - 1; j++) {
       if (isFibonacci(row[j] + row[j + 1])) {
-        score += row[j] + row[j + 1];
-        row[j] += row[j + 1];
-        row.splice(j + 1, 1); // Remove the combined tile, moving everything to the left.
-        moveOccurred = true; // Mark that a combination occurred.
-        j--; // Adjust index due to the removal.
+        row[j] += row[j + 1]; // Combine the current and next tile
+        row.splice(j + 1, 1); // Remove the next tile
+        row.push(0); // Add a zero at the end to maintain row length, correctly this time
+        score += row[j]; // Update score
+        moveOccurred = true;
       }
     }
 
-    // Update the grid with the new row state, placing it at the left.
-    let filledRow = row.concat(Array(nums[i].length - row.length).fill(0));
+    // After combining, the row might be shorter than the original.
+    // Fill the remainder of the row with zeros to ensure it has the same length as before.
+    while (row.length < nums[i].length) {
+      row.push(0); // Push zeros to the end of the row to fill it out
+    }
 
-    // Update the original grid and check if any tile has moved or combined.
-    for (let j = 0; j < nums[i].length; j++) {
-      nums[i][j] = filledRow[j];
-      if (nums[i][j] !== originalRow[j]) moveOccurred = true;
+    // Check for any changes in the row compared to its original state.
+    if (!nums[i].every((val, index) => val === row[index])) {
+      nums[i] = row;
+      moveOccurred = true;
     }
   }
 
-  // Add a new number only if a move has happened.
+  // Trigger new number addition and game over check only if any move has occurred
   if (moveOccurred) {
     newNum();
+    checkGameOver();
   }
-  checkGameOver();
 }
+
 
 function shiftTilesLeft(row) {
   let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
@@ -193,40 +193,46 @@ function moveRightAndCombine() {
   let moveOccurred = false;
 
   for (let i = 0; i < rows; i++) {
+    // Store the original state of the row for comparison.
     let originalRow = [...nums[i]];
-    let newRow = nums[i].filter(val => val !== 0); // Keep non-zero values.
-    let combined = false; // Track if a combination has occurred to prevent double combining.
 
-    // Attempt to combine adjacent tiles, now working from the right in the original orientation.
-    for (let j = newRow.length - 1; j > 0; j--) {
-      if (isFibonacci(newRow[j] + newRow[j - 1]) && !combined) {
-        newRow[j] += newRow[j - 1]; // Combine tiles.
-        newRow.splice(j - 1, 1); // Remove the combined tile.
-        combined = true; // Prevent further combination.
+    // Extract non-zero values to the end, effectively shifting right.
+    let newRow = nums[i].filter((val) => val !== 0).reverse();
+
+    // Attempt to combine adjacent tiles from the end.
+    for (let j = 0; j < newRow.length - 1; j++) {
+      if (isFibonacci(newRow[j] + newRow[j + 1])) {
+        score += newRow[j] + newRow[j + 1];
+        newRow[j] += newRow[j + 1];
+        newRow.splice(j + 1, 1);
         moveOccurred = true;
+        j--; // Adjust the index to stay in place after a merge.
       }
     }
 
-    // Shift all tiles to the right by filling the start of the row with zeros.
+    // Reverse back after combining.
+    newRow.reverse();
+
+    // Fill the start of the row with zeros to shift all tiles right.
     while (newRow.length < nums[i].length) {
       newRow.unshift(0);
     }
 
-    // Update the row in the original grid if there's any change.
-    if (!originalRow.every((val, index) => val === newRow[index])) {
-      nums[i] = newRow;
+    // Update the row in the original grid.
+    nums[i] = newRow;
+
+    // Check for any changes in the row compared to its original state.
+    if (!originalRow.every((val, index) => val === nums[i][index])) {
       moveOccurred = true;
     }
   }
 
-  // Add a new number and check the game over condition only if a move has happened.
+  // Add a new number only if a move has happened.
   if (moveOccurred) {
     newNum();
-    checkGameOver();
   }
+  checkGameOver();
 }
-
-
 
 function shiftTilesRight(row) {
   let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
