@@ -193,46 +193,40 @@ function moveRightAndCombine() {
   let moveOccurred = false;
 
   for (let i = 0; i < rows; i++) {
-    // Store the original state of the row for comparison.
     let originalRow = [...nums[i]];
+    let newRow = nums[i].filter(val => val !== 0); // Keep non-zero values.
+    let combined = false; // Track if a combination has occurred to prevent double combining.
 
-    // Extract non-zero values to the end, effectively shifting right.
-    let newRow = nums[i].filter((val) => val !== 0).reverse();
-
-    // Attempt to combine adjacent tiles from the end.
-    for (let j = 0; j < newRow.length - 1; j++) {
-      if (isFibonacci(newRow[j] + newRow[j + 1])) {
-        score += newRow[j] + newRow[j + 1];
-        newRow[j] += newRow[j + 1];
-        newRow.splice(j + 1, 1);
+    // Attempt to combine adjacent tiles, now working from the right in the original orientation.
+    for (let j = newRow.length - 1; j > 0; j--) {
+      if (isFibonacci(newRow[j] + newRow[j - 1]) && !combined) {
+        newRow[j] += newRow[j - 1]; // Combine tiles.
+        newRow.splice(j - 1, 1); // Remove the combined tile.
+        combined = true; // Prevent further combination.
         moveOccurred = true;
-        j--; // Adjust the index to stay in place after a merge.
       }
     }
 
-    // Reverse back after combining.
-    newRow.reverse();
-
-    // Fill the start of the row with zeros to shift all tiles right.
+    // Shift all tiles to the right by filling the start of the row with zeros.
     while (newRow.length < nums[i].length) {
       newRow.unshift(0);
     }
 
-    // Update the row in the original grid.
-    nums[i] = newRow;
-
-    // Check for any changes in the row compared to its original state.
-    if (!originalRow.every((val, index) => val === nums[i][index])) {
+    // Update the row in the original grid if there's any change.
+    if (!originalRow.every((val, index) => val === newRow[index])) {
+      nums[i] = newRow;
       moveOccurred = true;
     }
   }
 
-  // Add a new number only if a move has happened.
+  // Add a new number and check the game over condition only if a move has happened.
   if (moveOccurred) {
     newNum();
+    checkGameOver();
   }
-  checkGameOver();
 }
+
+
 
 function shiftTilesRight(row) {
   let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
