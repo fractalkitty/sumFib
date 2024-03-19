@@ -1,5 +1,29 @@
 //11358
 
+let bg1 = "#4a6660";
+let bg2 = "#467971";
+let colors = [
+  "#403831",
+  "#224845",
+  "#7e3e25",
+  "#8e4c24",
+  "#736139",
+  "#3c6e66",
+  "#7a5342",
+  "#a04c35",
+  "#3c8d92",
+  "#6d8e7a",
+  "#4a3a35",
+  "#364847",
+  "#893e2a",
+  "#8e4e25",
+  "#77613e",
+  "#436e69",
+  "#8e5850",
+  "#aa554c",
+  "#4b9097",
+  "#798f7e"
+];
 let spots = [];
 let nums = [];
 let newGame = false;
@@ -8,10 +32,10 @@ let onMobile = false;
 let startX, startY, endX, endY, r1, g1, b1;
 function setup() {
   c = windowHeight * 0.9;
-  angleMode(DEGREES);
+  // angleMode(DEGREES);
   r1 = 100;
   g1 = 150;
-  b1 = 180;
+  b1 = 200;
   createCanvas((3 / 5) * c, c);
   onMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
@@ -36,13 +60,13 @@ function setup() {
 }
 
 function draw() {
-  fill(r1 - 50, g1 - 50, b1 - 50);
-
-  rect(0, 0, width, height, 20, 20, 20, 20);
+  fill(bg2);
+  noStroke();
+  rect(0, 0, width, height, 40, 40, 40, 40);
   fill(255);
-  textSize(c / 20);
+  textSize(c / 30);
   text("Score: " + str(int(score)), width / 4, dh / 1.5);
-  textSize(c / 40);
+  textSize(c / 30);
   text("sumFib", (3 * width) / 4, dh / 4);
   textSize(c / 20);
   if (!newGame) {
@@ -54,10 +78,11 @@ function draw() {
     pop();
   } else {
     drawBoard();
-    fill(r1, g1, b1, 150);
-
-    rect(0, 0, width, height, 20, 20, 20, 20);
+    fill(0, 0, 0, 180);
+    noStroke();
+    rect(0, 0, width, height, 40, 40, 40, 40);
     fill(255);
+    stroke(255);
     textSize(c / 20);
     text("Score: " + str(int(score)), width / 4, dh / 1.5);
     textSize(c / 10);
@@ -80,24 +105,27 @@ function drawBoard() {
   fill(r1 + 50, g1 + 50, b1 + 50);
 
   stroke(255);
-  rect(0, 0, width, height, 20, 20, 20, 20);
+  // rect(0, 0, width, height, 20, 20, 20, 20);
   stroke(240, 255, 255);
-  line(dw, 0, dw, height);
-  line(2 * dw, 0, 2 * dw, height);
-  for (let i = 1; i < 5; i++) {
-    line(0, i * dh, width, i * dh);
-  }
+
   for (let i = 0; i < 5; i++) {
     for (let j = 0; j < 3; j++) {
+      noFill();
+      rect(j * dw, i * dh, dw, dh, 40, 40, 40, 40);
       if (nums[i][j] != 0) {
-        fill(
-          r1 - r1 * abs(sin(nums[i][j])) * 0.9,
-          g1 - g1 * abs(sin(nums[i][j])) * 0.9,
-          b1 - b1 * abs(sin(nums[i][j]) * 0.9)
+        fill(colors[findFibonacciIndex(nums[i][j]) % colors.length]);
+        rect(
+          j * dw + dw * 0.025,
+          i * dh + dh * 0.025,
+          dw * 0.95,
+          dh * 0.95,
+          40,
+          40,
+          40,
+          40
         );
-        rect(j * dw, i * dh, dw, dh, 20, 20);
         fill(255);
-        text(str(nums[i][j]), dw / 2 + j * dw, dh / 1.5 + i * dh);
+        text(str(nums[i][j]), dw / 2 + j * dw, dh / 1.7 + i * dh);
       }
     }
   }
@@ -148,7 +176,7 @@ function moveLeftAndCombine() {
   let moveOccurred = false;
 
   for (let i = 0; i < rows; i++) {
-    let row = nums[i].filter(val => val !== 0); // Remove zeros for combination logic
+    let row = nums[i].filter((val) => val !== 0); // Remove zeros for combination logic
 
     // Combine tiles from left to right
     for (let j = 0; j < row.length - 1; j++) {
@@ -180,7 +208,6 @@ function moveLeftAndCombine() {
     checkGameOver();
   }
 }
-
 
 function shiftTilesLeft(row) {
   let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
@@ -250,7 +277,7 @@ function moveUpAndCombine() {
       originalColumn.push(nums[i][j]);
     }
 
-    let column = originalColumn.filter(val => val !== 0);
+    let column = originalColumn.filter((val) => val !== 0);
     let combined = new Array(column.length).fill(false); // Track which tiles have combined
 
     for (let i = 0; i < column.length - 1; i++) {
@@ -279,7 +306,6 @@ function moveUpAndCombine() {
     checkGameOver();
   }
 }
-
 
 function moveDownAndCombine() {
   let cols = nums[0].length;
@@ -422,7 +448,7 @@ function touchStarted() {
 }
 
 function touchEnded() {
-  if (onMobile) {
+  if (onMobile && !cooldown) {
     // Only proceed if there's at least one touch point
     if (touches.length > 0) {
       endX = touches[0].x;
@@ -450,6 +476,7 @@ function touchEnded() {
         // console.log("Swiped Left");
         moveLeftAndCombine();
         if (newGame) {
+
           newGame = false;
           setup();
           draw();
