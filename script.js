@@ -1,489 +1,315 @@
-//11358
-let readyForNewGame = false;
-let bg1 = "#4a6660";
-let bg2 = "#467971";
-let colors = [
-  "#403831",
-  "#224845",
-  "#7e3e25",
-  "#8e4c24",
-  "#736139",
-  "#3c6e66",
-  "#7a5342",
-  "#a04c35",
-  "#3c8d92",
-  "#6d8e7a",
-  "#4a3a35",
-  "#364847",
-  "#893e2a",
-  "#8e4e25",
-  "#77613e",
-  "#436e69",
-  "#8e5850",
-  "#aa554c",
-  "#4b9097",
-  "#798f7e"
-];
-let spots = [];
-let nums = [];
-let newGame = false;
-let c, score, dw, dh;
-let onMobile = false;
-let startX, startY, endX, endY, r1, g1, b1;
-function setup() {
-  describe('A game that adds fibonacci numbers similar to 2048 and 3s. The grid is layed out in a 3x5 grid and starts with 2 random numbers being a 1 or 2. The colors are of greens and reds and oranges.');
-  readyForNewGame = false;
-  c = windowHeight * 0.9;
-  // angleMode(DEGREES);
-  r1 = 100;
-  g1 = 150;
-  b1 = 200;
-  createCanvas((3 / 5) * c, c);
-  onMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+// @ts-check
+// sumFib — vanilla HTML/CSS/JS, no dependencies.
+// Tiles slide via CSS transitions on transform; game logic is direction-symmetric
+// (one merge per tile per move), and accessibility is wired through ARIA live regions.
+
+const ROWS = 5;
+const COLS = 3;
+const SLIDE_MS = 140;     // must match --slide in CSS
+const SPAWN_WEIGHTS = [1, 1, 1, 2]; // 75% chance of 1, 25% chance of 2
+const SWIPE_THRESHOLD = 24;
+
+const $ = /** @type {<T extends HTMLElement>(id: string) => T} */ (id => /** @type {any} */ (document.getElementById(id)));
+const board = $('board');
+const scoreEl = $('score');
+const bestEl = $('best');
+const statusEl = $('status');
+const finalScoreEl = $('final-score');
+const finalBestEl = $('final-best');
+const dialog = /** @type {HTMLDialogElement} */ ($('gameover'));
+const newGameBtn = $('newgame');
+
+/** @typedef {{ id: number, value: number }} Tile */
+
+/** @type {(Tile|null)[][]} */
+let grid;
+/** @type {Map<number, HTMLElement>} */
+const tileEls = new Map();
+let nextId = 1;
+let score = 0;
+let best = Number(localStorage.getItem('sumfib.best')) || 0;
+let busy = false;
+let gameOver = false;
+
+function isFib(/** @type {number} */ n) {
+  if (n < 2) return false;
+  let a = 1, b = 1;
+  while (b < n) { const t = a + b; a = b; b = t; }
+  return b === n;
+}
+
+function emptyCells() {
+  /** @type {[number, number][]} */
+  const out = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!grid[r][c]) out.push([r, c]);
+  return out;
+}
+
+function init() {
+  // First-time: paint the empty-cell backgrounds.
+  if (!board.querySelector('.cell')) {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < ROWS * COLS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      frag.appendChild(cell);
+    }
+    board.appendChild(frag);
+  }
+
+  for (const el of tileEls.values()) el.remove();
+  tileEls.clear();
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
   score = 0;
-  dw = width / 3;
-  dh = height / 5;
-  for (let i = 0; i < 15; i++) {
-    spots[i] = false;
-  }
-  for (let i = 0; i < 5; i++) {
-    nums[i] = [];
-    nums[i][0] = 0;
-    nums[i][1] = 0;
-    nums[i][2] = 0;
-  }
-  newNum();
-  newNum();
-  textSize(c / 20);
-  textAlign(CENTER);
-  loop();
+  gameOver = false;
+  busy = false;
+  renderScore();
+  if (dialog.open) dialog.close();
+  spawn();
+  spawn();
 }
 
-function draw() {
-  fill(bg2);
-  noStroke();
-  rect(0, 0, width, height, 40, 40, 40, 40);
-  fill(255);
-  textSize(c / 30);
-  text("Score: " + str(int(score)), width / 4, dh / 1.5);
-  textSize(c / 30);
-  text("sumFib", (3 * width) / 4, dh / 4);
-  textSize(c / 20);
-  if (!newGame) {
-    push();
+function spawn() {
+  const cells = emptyCells();
+  if (cells.length === 0) return;
+  const [r, c] = cells[Math.floor(Math.random() * cells.length)];
+  const value = SPAWN_WEIGHTS[Math.floor(Math.random() * SPAWN_WEIGHTS.length)];
+  const id = nextId++;
+  const tile = { id, value };
+  grid[r][c] = tile;
 
-    scale(0.8);
-    translate(dw / 2.7, dh);
-    drawBoard();
-    pop();
+  const el = document.createElement('div');
+  el.className = 'tile appear';
+  el.dataset.value = String(value);
+  el.dataset.digits = String(String(value).length);
+  el.style.setProperty('--r', String(r));
+  el.style.setProperty('--c', String(c));
+
+  const inner = document.createElement('div');
+  inner.className = 'tile-inner';
+  inner.setAttribute('role', 'gridcell');
+  inner.setAttribute('aria-label', tileLabel(value, r, c));
+  inner.textContent = String(value);
+  el.appendChild(inner);
+
+  board.appendChild(el);
+  tileEls.set(id, el);
+
+  // Two rAFs so the browser commits the `appear` (scale 0) state before transitioning to scale 1.
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('appear')));
+}
+
+function tileLabel(value, r, c) {
+  return `Tile ${value}, row ${r + 1}, column ${c + 1}`;
+}
+
+function renderScore() {
+  scoreEl.textContent = String(score);
+  bestEl.textContent = String(best);
+}
+
+function bumpScore() {
+  scoreEl.classList.remove('bump');
+  void scoreEl.offsetWidth;
+  scoreEl.classList.add('bump');
+  setTimeout(() => scoreEl.classList.remove('bump'), 400);
+}
+
+function announce(/** @type {string} */ msg) {
+  statusEl.textContent = msg;
+}
+
+/**
+ * @param {number} dr
+ * @param {number} dc
+ * @returns {[number, number][][]}
+ */
+function buildLines(dr, dc) {
+  const lines = [];
+  if (dc !== 0) {
+    for (let r = 0; r < ROWS; r++) {
+      const line = [];
+      if (dc === -1) for (let c = 0; c < COLS; c++) line.push(/** @type {[number, number]} */ ([r, c]));
+      else for (let c = COLS - 1; c >= 0; c--) line.push(/** @type {[number, number]} */ ([r, c]));
+      lines.push(line);
+    }
   } else {
-    drawBoard();
-    fill(0, 0, 0, 180);
-    noStroke();
-    rect(0, 0, width, height, 20, 20, 20, 20);
-    fill(255);
-    stroke(255);
-    textSize(c / 20);
-    text("Score: " + str(int(score)), width / 4, dh / 1.5);
-    textSize(c / 10);
-    fill(255);
-
-    textSize(c / 20);
-    text("Sum-thing is over.", width / 2, height / 2);
-    textSize(c / 40);
-    if (onMobile) {
-      text("Swipe to play again.", width / 2, height / 2 + 40);
-    } else {
-      text("Press space to play again.", width / 2, height / 2 + 40);
-    }
-
-    textSize(20);
-  }
-}
-function drawBoard() {
-  // background(160,220,240);
-  fill(r1 + 50, g1 + 50, b1 + 50);
-
-  stroke(255);
-  // rect(0, 0, width, height, 20, 20, 20, 20);
-  stroke(240, 255, 255);
-
-  for (let i = 0; i < 5; i++) {
-    for (let j = 0; j < 3; j++) {
-      noFill();
-      rect(j * dw, i * dh, dw, dh, 40, 40, 40, 40);
-      if (nums[i][j] != 0) {
-        fill(colors[findFibonacciIndex(nums[i][j]) % colors.length]);
-        rect(
-          j * dw + dw * 0.025,
-          i * dh + dh * 0.025,
-          dw * 0.95,
-          dh * 0.95,
-          40,
-          40,
-          40,
-          40
-        );
-        fill(255);
-        text(str(nums[i][j]), dw / 2 + j * dw, dh / 1.7 + i * dh);
-      }
+    for (let c = 0; c < COLS; c++) {
+      const line = [];
+      if (dr === -1) for (let r = 0; r < ROWS; r++) line.push(/** @type {[number, number]} */ ([r, c]));
+      else for (let r = ROWS - 1; r >= 0; r--) line.push(/** @type {[number, number]} */ ([r, c]));
+      lines.push(line);
     }
   }
+  return lines;
 }
-function newNum() {
-  let emptySpots = [];
-  // Identify all empty spots
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = 0; j < nums[i].length; j++) {
-      if (nums[i][j] === 0) {
-        emptySpots.push({ i, j });
-      }
+
+/**
+ * @param {number} dr -1=up, 1=down, 0=horizontal
+ * @param {number} dc -1=left, 1=right, 0=vertical
+ */
+function move(dr, dc) {
+  if (busy || gameOver) return;
+
+  const lines = buildLines(dr, dc);
+  /** @type {(Tile|null)[][]} */
+  const newGrid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  /** @type {{ absorbed: Tile, into: Tile, newValue: number, r: number, c: number }[]} */
+  const merges = [];
+  let moved = false;
+  let gain = 0;
+
+  for (const line of lines) {
+    /** @type {Tile[]} */
+    const present = [];
+    for (const [r, c] of line) {
+      const t = grid[r][c];
+      if (t) present.push(t);
     }
-  }
 
-  if (emptySpots.length > 0) {
-    let spot = random(emptySpots);
-    nums[spot.i][spot.j] = random([1, 1, 1, 2]);
-  } else {
-    // No empty spots, check if moves are possible
-    if (!canMakeMove()) {
-      // console.log("Game Over! No moves left.");
-      newGame = true;
-    } else {
-      // console.log("No new numbers added, but moves are still possible.");
-    }
-  }
-}
-
-function keyPressed() {
-  if (keyCode === 37 || keyCode === 65) {
-    moveLeftAndCombine();
-  } else if (keyCode === 38 || keyCode === 87) {
-    moveUpAndCombine();
-  } else if (keyCode === 39 || keyCode === 68) {
-    moveRightAndCombine();
-  } else if (keyCode === 40 || keyCode === 83) {
-    moveDownAndCombine();
-  }
-  if (keyCode === 32) {
-    newGame = false;
-    setup();
-    draw();
-  }
-}
-function moveLeftAndCombine() {
-  let rows = nums.length;
-  let moveOccurred = false;
-
-  for (let i = 0; i < rows; i++) {
-    let row = nums[i].filter((val) => val !== 0); // Remove zeros for combination logic
-
-    // Combine tiles from left to right
-    for (let j = 0; j < row.length - 1; j++) {
-      if (isFibonacci(row[j] + row[j + 1])) {
-        row[j] += row[j + 1]; // Combine the current and next tile
-        row.splice(j + 1, 1); // Remove the next tile
-        row.push(0); // Add a zero at the end to maintain row length, correctly this time
-        score += row[j]; // Update score
-        moveOccurred = true;
+    /** @type {{ tile: Tile, newValue?: number, absorbed?: Tile }[]} */
+    const slots = [];
+    for (let i = 0; i < present.length; ) {
+      const cur = present[i];
+      const next = present[i + 1];
+      if (next && isFib(cur.value + next.value)) {
+        slots.push({ tile: cur, newValue: cur.value + next.value, absorbed: next });
+        gain += cur.value + next.value;
+        i += 2;
+      } else {
+        slots.push({ tile: cur });
+        i += 1;
       }
     }
 
-    // After combining, the row might be shorter than the original.
-    // Fill the remainder of the row with zeros to ensure it has the same length as before.
-    while (row.length < nums[i].length) {
-      row.push(0); // Push zeros to the end of the row to fill it out
-    }
+    for (let k = 0; k < slots.length; k++) {
+      const [r, c] = line[k];
+      const slot = slots[k];
+      newGrid[r][c] = slot.tile;
+      const el = tileEls.get(slot.tile.id);
+      if (!el) continue;
+      const prevR = Number(el.style.getPropertyValue('--r'));
+      const prevC = Number(el.style.getPropertyValue('--c'));
+      if (prevR !== r || prevC !== c) moved = true;
+      el.style.setProperty('--r', String(r));
+      el.style.setProperty('--c', String(c));
 
-    // Check for any changes in the row compared to its original state.
-    if (!nums[i].every((val, index) => val === row[index])) {
-      nums[i] = row;
-      moveOccurred = true;
-    }
-  }
-
-  // Trigger new number addition and game over check only if any move has occurred
-  if (moveOccurred) {
-    newNum();
-    checkGameOver();
-  }
-}
-
-function shiftTilesLeft(row) {
-  let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
-  let missing = nums[row].length - newRow.length; // Calculate missing tiles
-  nums[row] = newRow.concat(Array(missing).fill(0)); // Fill the rest with zeros
-}
-
-function moveRightAndCombine() {
-  let rows = nums.length;
-  let moveOccurred = false;
-
-  for (let i = 0; i < rows; i++) {
-    // Store the original state of the row for comparison.
-    let originalRow = [...nums[i]];
-
-    // Extract non-zero values to the end, effectively shifting right.
-    let newRow = nums[i].filter((val) => val !== 0).reverse();
-
-    // Attempt to combine adjacent tiles from the end.
-    for (let j = 0; j < newRow.length - 1; j++) {
-      if (isFibonacci(newRow[j] + newRow[j + 1])) {
-        score += newRow[j] + newRow[j + 1];
-        newRow[j] += newRow[j + 1];
-        newRow.splice(j + 1, 1);
-        moveOccurred = true;
-        j--; // Adjust the index to stay in place after a merge.
+      if (slot.absorbed && slot.newValue) {
+        moved = true;
+        const absEl = tileEls.get(slot.absorbed.id);
+        if (absEl) {
+          absEl.style.setProperty('--r', String(r));
+          absEl.style.setProperty('--c', String(c));
+          absEl.classList.add('absorbing');
+        }
+        merges.push({ absorbed: slot.absorbed, into: slot.tile, newValue: slot.newValue, r, c });
       }
     }
-
-    // Reverse back after combining.
-    newRow.reverse();
-
-    // Fill the start of the row with zeros to shift all tiles right.
-    while (newRow.length < nums[i].length) {
-      newRow.unshift(0);
-    }
-
-    // Update the row in the original grid.
-    nums[i] = newRow;
-
-    // Check for any changes in the row compared to its original state.
-    if (!originalRow.every((val, index) => val === nums[i][index])) {
-      moveOccurred = true;
-    }
   }
 
-  // Add a new number only if a move has happened.
-  if (moveOccurred) {
-    newNum();
-  }
-  checkGameOver();
-}
+  if (!moved) return;
 
-function shiftTilesRight(row) {
-  let newRow = nums[row].filter((val) => val !== 0); // Remove zeros
-  let missing = nums[row].length - newRow.length; // Calculate missing tiles
-  nums[row] = Array(missing).fill(0).concat(newRow); // Fill the beginning with zeros
-}
-
-function moveUpAndCombine() {
-  let cols = nums[0].length;
-  let moveOccurred = false;
-
-  for (let j = 0; j < cols; j++) {
-    let originalColumn = [];
-    for (let i = 0; i < nums.length; i++) {
-      originalColumn.push(nums[i][j]);
+  busy = true;
+  grid = newGrid;
+  if (gain > 0) {
+    score += gain;
+    if (score > best) {
+      best = score;
+      localStorage.setItem('sumfib.best', String(best));
     }
+    renderScore();
+    bumpScore();
+    announce(`Combined for ${gain}. Score ${score}.`);
+  }
 
-    let column = originalColumn.filter((val) => val !== 0);
-    let combined = new Array(column.length).fill(false); // Track which tiles have combined
+  window.setTimeout(() => {
+    for (const m of merges) {
+      const absEl = tileEls.get(m.absorbed.id);
+      absEl?.remove();
+      tileEls.delete(m.absorbed.id);
 
-    for (let i = 0; i < column.length - 1; i++) {
-      if (!combined[i] && isFibonacci(column[i] + column[i + 1])) {
-        score += column[i] + column[i + 1];
-        column[i] += column[i + 1];
-        column.splice(i + 1, 1); // Remove the combined tile
-        combined.splice(i + 1, 1); // Ensure we track combined state correctly
-        combined[i] = true; // Mark this tile as having combined
-        moveOccurred = true;
+      m.into.value = m.newValue;
+      const intoEl = tileEls.get(m.into.id);
+      if (intoEl) {
+        intoEl.dataset.value = String(m.newValue);
+        intoEl.dataset.digits = String(String(m.newValue).length);
+        const inner = intoEl.querySelector('.tile-inner');
+        if (inner) {
+          inner.textContent = String(m.newValue);
+          inner.setAttribute('aria-label', tileLabel(m.newValue, m.r, m.c));
+        }
+        intoEl.classList.remove('pop');
+        void intoEl.offsetWidth;
+        intoEl.classList.add('pop');
       }
     }
-
-    while (column.length < nums.length) {
-      column.push(0); // Fill with zeros
-    }
-
-    for (let i = 0; i < nums.length; i++) {
-      nums[i][j] = column[i];
-      if (nums[i][j] !== originalColumn[i]) moveOccurred = true;
-    }
-  }
-
-  if (moveOccurred) {
-    newNum();
-    checkGameOver();
-  }
+    spawn();
+    busy = false;
+    if (!hasMoves()) endGame();
+  }, SLIDE_MS);
 }
 
-function moveDownAndCombine() {
-  let cols = nums[0].length;
-  let moveOccurred = false;
-
-  for (let j = 0; j < cols; j++) {
-    // Store the original state of the column for comparison.
-    let originalColumn = [];
-    for (let i = 0; i < nums.length; i++) {
-      originalColumn.push(nums[i][j]);
+function hasMoves() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = grid[r][c];
+      if (!t) return true;
+      const right = c + 1 < COLS ? grid[r][c + 1] : null;
+      const down = r + 1 < ROWS ? grid[r + 1][c] : null;
+      if (right && isFib(t.value + right.value)) return true;
+      if (down && isFib(t.value + down.value)) return true;
     }
-
-    // Extract the current column, ignoring zeros.
-    let column = originalColumn.filter((val) => val !== 0);
-
-    // Attempt to combine tiles in the column, starting from the bottom.
-    for (let i = column.length - 1; i > 0; i--) {
-      if (isFibonacci(column[i] + column[i - 1])) {
-        score += column[i] + column[i - 1];
-        column[i] += column[i - 1];
-        column.splice(i - 1, 1); // Remove the combined tile, moving everything down.
-        moveOccurred = true; // Mark that a combination occurred.
-        i--; // Adjust index due to the removal.
-      }
-    }
-
-    // Update the grid with the new column state, placing it at the bottom.
-    let filledColumn = Array(nums.length - column.length)
-      .fill(0)
-      .concat(column);
-
-    // Update the original grid and check if any tile has moved or combined.
-    for (let i = 0; i < nums.length; i++) {
-      nums[i][j] = filledColumn[i];
-      if (nums[i][j] !== originalColumn[i]) moveOccurred = true;
-    }
-  }
-
-  // Add a new number only if a move has happened.
-  if (moveOccurred) {
-    newNum();
-  }
-  checkGameOver();
-}
-
-function isFibonacci(num) {
-  let a = 0;
-  let b = 1;
-  if (num === a || num === b) return true;
-  let c = a + b;
-  while (c <= num) {
-    if (c === num) return true;
-    a = b;
-    b = c;
-    c = a + b;
   }
   return false;
 }
 
-function findFibonacciIndex(n) {
-  if (n <= 0) return -1; // Handle non-positive inputs
-  let a = 0,
-    b = 1,
-    index = 1;
+function endGame() {
+  gameOver = true;
+  announce(`Game over. Final score ${score}.`);
+  finalScoreEl.textContent = String(score);
+  finalBestEl.textContent = String(best);
+  // Slight delay so the last merge animation finishes first.
+  setTimeout(() => dialog.showModal(), 320);
+}
 
-  while (b < n) {
-    let temp = b;
-    b = a + b;
-    a = temp;
-    index++;
+// ===== Input =====
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (dialog.open) return; // dialog has its own focus + ESC
+  switch (e.key) {
+    case 'ArrowLeft':  case 'a': case 'A': move(0, -1); e.preventDefault(); break;
+    case 'ArrowRight': case 'd': case 'D': move(0,  1); e.preventDefault(); break;
+    case 'ArrowUp':    case 'w': case 'W': move(-1, 0); e.preventDefault(); break;
+    case 'ArrowDown':  case 's': case 'S': move( 1, 0); e.preventDefault(); break;
+    case 'r': case 'R': init(); break;
   }
+});
 
-  return b === n ? index : -1; // Check if the number is actually a Fibonacci number
-}
+/** @type {{ x: number, y: number } | null} */
+let touchStart = null;
+board.addEventListener('touchstart', (e) => {
+  const t = e.changedTouches[0];
+  touchStart = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+board.addEventListener('touchend', (e) => {
+  if (!touchStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  touchStart = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return;
+  if (Math.abs(dx) > Math.abs(dy)) move(0, dx > 0 ? 1 : -1);
+  else move(dy > 0 ? 1 : -1, 0);
+}, { passive: true });
 
-function canMakeMove() {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = 0; j < nums[i].length; j++) {
-      // Check right for possible combination
-      if (j < nums[i].length - 1) {
-        if (
-          isFibonacci(nums[i][j] + nums[i][j + 1]) &&
-          nums[i][j] !== 0 &&
-          nums[i][j + 1] !== 0
-        ) {
-          return true;
-        }
-      }
-      // Check down for possible combination
-      if (i < nums.length - 1) {
-        if (
-          isFibonacci(nums[i][j] + nums[i + 1][j]) &&
-          nums[i][j] !== 0 &&
-          nums[i + 1][j] !== 0
-        ) {
-          return true;
-        }
-      }
-    }
-  }
-  return false; // No moves can be made
-}
+// Prevent the page from scrolling when arrow-keying inside the board on touch devices.
+board.addEventListener('touchmove', (e) => { if (touchStart) e.preventDefault(); }, { passive: false });
 
-function checkGameOver() {
-  if (!canMakeMove() && isBoardFull()) {
-    newGame = true;
-  }
-}
+newGameBtn.addEventListener('click', () => init());
 
-function isBoardFull() {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = 0; j < nums[i].length; j++) {
-      if (nums[i][j] === 0) {
-        return false; // Found an empty spot, so the board isn't full.
-      }
-    }
-  }
-  return true; // No empty spots found, board is full.
-}
+dialog.addEventListener('close', () => {
+  if (dialog.returnValue === 'restart') init();
+});
 
-function windowResized() {
-  c = windowHeight * 0.9;
-  score = 0;
-  dw = width / 3;
-  dh = height / 5;
-  resizeCanvas((3 / 5) * c, c);
-  textSize(max(20, c / 10));
-  dw = width / 3;
-  dh = height / 5;
-}
-
-function touchStarted() {
-  if (onMobile) {
-    if (touches.length > 0) {
-      startX = touches[0].x;
-      startY = touches[0].y;
-    }
-    return false; // Prevent default browser behavior
-  }
-}
-
-function touchEnded() {
-  if (onMobile) {
-    if (touches.length > 0) {
-      endX = touches[0].x;
-      endY = touches[0].y;
-    } else {
-      endX = mouseX;
-      endY = mouseY;
-    }
-
-    const diffX = endX - startX;
-    const diffY = endY - startY;
-
-    if (!newGame || readyForNewGame) {
-      // Process swipes only if it's not end game or ready for a new game
-      if (abs(diffX) > abs(diffY)) {
-        // Horizontal movement
-        diffX > 0 ? moveRightAndCombine() : moveLeftAndCombine();
-      } else {
-        // Vertical movement
-        diffY > 0 ? moveDownAndCombine() : moveUpAndCombine();
-      }
-    }
-
-    if (newGame && !readyForNewGame) {
-      // If the game has ended and it's the first swipe after the end, set readyForNewGame to true
-      readyForNewGame = true;
-    } else if (newGame && readyForNewGame) {
-      // If it's the second swipe after the game has ended, reset for a new game
-      newGame = false;
-      readyForNewGame = false; // Reset readyForNewGame
-      setup();
-      draw();
-    }
-
-    return false; // Prevent default
-  }
-}
+init();

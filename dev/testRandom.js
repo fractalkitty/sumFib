@@ -1,4 +1,3 @@
-//11358
 let gameData = []; // Array to store scores
 let largestNumber = 0;
 let gameCounter = 0; // Counter for games played
